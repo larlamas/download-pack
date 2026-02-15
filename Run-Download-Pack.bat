@@ -8,6 +8,6 @@ echo  ========================================
 echo.
 echo  Запускаю скрипт из GitHub...
 echo.
-powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/larlamas/mail-generator/main/Download-Programs/Download-Programs.ps1 | iex"
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/larlamas/download-pack/main/Download-Programs.ps1 | iex"
 echo.
 pause

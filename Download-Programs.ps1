@@ -10,7 +10,7 @@
     Версия: 1.0
     Запуск: 
       Локально:   .\Download-Programs.ps1
-      Из GitHub:  irm https://raw.githubusercontent.com/larlamas/mail-generator/main/Download-Programs.ps1 | iex
+      Из GitHub:  irm https://raw.githubusercontent.com/larlamas/download-pack/main/Download-Programs.ps1 | iex
     
     РЕКОМЕНДАЦИИ ПЕРЕД ЗАПУСКОМ:
     1. Запустите PowerShell от имени Администратора
