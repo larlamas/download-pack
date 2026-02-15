@@ -221,14 +221,14 @@ $Categories = @(
     },
     @{ Name = "START PROGS"; Icon = "⚙️"; Folder = "02_Start_Progs"; Files = @(
             @{Url = "https://www.7-zip.org/a/7z2600-x64.exe"; FileName = "7z2600-x64.exe" }
-            @{Url = "https://download.microsoft.com/download/1/7/1/1718ccc4-6315-4d8e-9543-8e28a4e18c4c/dxwebsetup.exe"; FileName = "DirectX_WebSetup.exe" }
-            @{Url = "https://nl1-dl.techpowerup.com/files/yVj4unqbFybs53DtKdfJ9A/1771191835/Visual-C-Runtimes-All-in-One-Dec-2025.zip"; FileName = "VisualC-Runtimes-AIO-2025.zip" }
-            @{Url = "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/6.0.36/windowsdesktop-runtime-6.0.36-win-x64.exe"; FileName = "dotnet-runtime-6.0.36.exe" }
+            @{Url = "https://download.microsoft.com/download/1/7/1/1718ccc4-6315-4d8e-9543-8e28a4e18c4c/dxwebsetup.exe"; FileName = "dxwebsetup.exe" }
+            @{Url = "https://nl1-dl.techpowerup.com/files/yVj4unqbFybs53DtKdfJ9A/1771191835/Visual-C-Runtimes-All-in-One-Dec-2025.zip"; FileName = "Visual-C-Runtimes-All-in-One-Dec-2025.zip" }
+            @{Url = "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/6.0.36/windowsdesktop-runtime-6.0.36-win-x64.exe"; FileName = "windowsdesktop-runtime-6.0.36-win-x64.exe" }
         )
     },
     @{ Name = "OPTIMIZATION"; Icon = "🚀"; Folder = "03_Optimization"; Files = @(
             @{Url = "https://dl.boosterx.org/BoosterX.exe"; FileName = "BoosterX.exe" }
-            @{Url = "https://www.wagnardsoft.com/ISLC/ISLC%20v1.0.3.7.exe"; FileName = "ISLC_v1.0.3.7.exe" }
+            @{Url = "https://www.wagnardsoft.com/ISLC/ISLC%20v1.0.3.7.exe"; FileName = "ISLC v1.0.3.7.exe" }
             @{Url = "https://download.sysinternals.com/files/Autoruns.zip"; FileName = "Autoruns.zip" }
         )
     },
@@ -237,20 +237,20 @@ $Categories = @(
             @{Url = "https://nl1-dl.techpowerup.com/files/p76N8gwtPRPEg6xAZevfgQ/1771197703/DDU-v18.1.4.1_setup.exe"; FileName = "DDU-v18.1.4.1_setup.exe" }
             @{Url = "https://nl1-dl.techpowerup.com/files/KUf2FQXSWuwuSaY4Kdjh4Q/1771197789/GPU-Z.2.69.0.exe"; FileName = "GPU-Z.2.69.0.exe" }
             @{Url = "https://github.com/Orbmu2k/nvidiaProfileInspector/releases/download/2.4.0.31/nvidiaProfileInspector.zip"; FileName = "nvidiaProfileInspector.zip" }
-            @{Url = "https://www.monitortests.com/download/cru-test/cru-test-2026-01.zip"; FileName = "CRU-test-2026-01.zip" }
+            @{Url = "https://www.monitortests.com/download/cru-test/cru-test-2026-01.zip"; FileName = "cru-test-2026-01.zip" }
         )
     },
     @{ Name = "DRIVERS"; Icon = "💽"; Folder = "05_Drivers"; Files = @(
             @{Url = "https://driveroff.net/drv/SDI_1.26.0.7z"; FileName = "SDI_1.26.0.7z" }
-            @{Url = "https://nl1-dl.techpowerup.com/files/YWDgCLKJMu0AMc5mIRnsNA/1771197767/AMD_Chipset_Software_7.11.26.2142.exe"; FileName = "AMD_Chipset_7.11.26.exe" }
-            @{Url = "https://nl1-dl.techpowerup.com/files/cJX7Ynfxb01_TC1FDjXZKw/1771197730/591.86-desktop-win10-win11-64bit-international-dch-whql.exe"; FileName = "NVIDIA_591.86_Driver.exe" }
-            @{Url = "https://lianli-update.oss-cn-beijing.aliyuncs.com/L3_CX/20260123-L-Connect%203-x64-hotfix-hotfix-change-sdk-v2.1.15-f93e2a64.exe"; FileName = "L-Connect3_v2.1.15.exe" }
-            @{Url = "https://drive.usercontent.google.com/download?id=1yC3Fg2yfSplqsACATQifmbL62FU_P3p2&export=download&authuser=0&confirm=t&uuid=a25d3845-aa1d-4e54-ac6a-e2e5493f0433&at=APcXIO006tLTPcoV1vcZY4znI_Vm%3A1771155597078"; FileName = "X2_CrazyLight_Software.exe" }
-            @{Url = "https://www.pulsar.gg/cdn/shop/t/79/assets/download.svg?v=8351372234618339141713834745"; FileName = "X2_CrazyLight_FW.svg" }
-            @{Url = "https://download.semiconductor.samsung.com/resources/software-resources/Samsung_Magician_Installer_Official_9.0.0.910.exe"; FileName = "Samsung_Magician_9.0.exe" }
-            @{Url = "https://fael-downloads-prod.focusrite.com/customer/prod/downloads/focusrite_control_v3_27_0.exe"; FileName = "Focusrite_Control_v3.27.exe" }
-            @{Url = "https://fael-downloads-prod.focusrite.com/customer/prod/s3fs-public/downloads/Focusrite%20Control%20-%203.6.0.1822_0.exe"; FileName = "Focusrite_Control_v3.6.exe" }
-            @{Url = "https://www2.ati.com/drivers/amd_ryzen_master_3_0_1_4819.exe"; FileName = "AMD_Ryzen_Master_3.0.1.exe" }
+            @{Url = "https://nl1-dl.techpowerup.com/files/YWDgCLKJMu0AMc5mIRnsNA/1771197767/AMD_Chipset_Software_7.11.26.2142.exe"; FileName = "AMD_Chipset_Software_7.11.26.2142.exe" }
+            @{Url = "https://nl1-dl.techpowerup.com/files/cJX7Ynfxb01_TC1FDjXZKw/1771197730/591.86-desktop-win10-win11-64bit-international-dch-whql.exe"; FileName = "591.86-desktop-win10-win11-64bit-international-dch-whql.exe" }
+            @{Url = "https://lianli-update.oss-cn-beijing.aliyuncs.com/L3_CX/20260123-L-Connect%203-x64-hotfix-hotfix-change-sdk-v2.1.15-f93e2a64.exe"; FileName = "20260123-L-Connect 3-x64-hotfix-hotfix-change-sdk-v2.1.15-f93e2a64.exe" }
+            @{Url = "https://drive.usercontent.google.com/download?id=1yC3Fg2yfSplqsACATQifmbL62FU_P3p2&export=download&authuser=0&confirm=t&uuid=a25d3845-aa1d-4e54-ac6a-e2e5493f0433&at=APcXIO006tLTPcoV1vcZY4znI_Vm%3A1771155597078"; FileName = "X2 CrazyLight Software.exe" }
+            @{Url = "https://www.pulsar.gg/cdn/shop/t/79/assets/download.svg?v=8351372234618339141713834745"; FileName = "X2 CrazyLight Mini Gaming Mouse Firmware Update.svg" }
+            @{Url = "https://download.semiconductor.samsung.com/resources/software-resources/Samsung_Magician_Installer_Official_9.0.0.910.exe"; FileName = "Samsung_Magician_Installer_Official_9.0.0.910.exe" }
+            @{Url = "https://fael-downloads-prod.focusrite.com/customer/prod/downloads/focusrite_control_v3_27_0.exe"; FileName = "focusrite_control_v3_27_0.exe" }
+            @{Url = "https://fael-downloads-prod.focusrite.com/customer/prod/s3fs-public/downloads/Focusrite%20Control%20-%203.6.0.1822_0.exe"; FileName = "Focusrite Control - 3.6.0.1822_0.exe" }
+            @{Url = "https://www2.ati.com/drivers/amd_ryzen_master_3_0_1_4819.exe"; FileName = "amd_ryzen_master_3_0_1_4819.exe" }
         )
     }
 )
