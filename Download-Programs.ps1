@@ -7,6 +7,10 @@ $Global:Downloaded = 0; $Global:Failed = 0; $Global:Skipped = 0
 $Global:TotalBytes = 0; $Global:FailedList = @()
 $Global:StartTime = Get-Date; $Global:BufSize = 262144
 
+# UTF-8 для корректного отображения эмодзи
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
 [Net.ServicePointManager]::DefaultConnectionLimit = 32
 [Net.ServicePointManager]::Expect100Continue = $false
@@ -31,7 +35,7 @@ function PadLine([string]$s) {
 }
 function WriteAt([int]$y, [string]$text) {
     [Console]::SetCursorPosition(0, $y)
-    [Console]::Write((PadLine $text))
+    Write-Host (PadLine $text) -NoNewline
 }
 
 # ═══════════════ GLOBAL BAR ═══════════════
@@ -93,7 +97,7 @@ function Start-LiveDownload {
     }
 
     # === DOWNLOAD ===
-    WriteAt $fileY "    📥 [$Num/$Total] $FileName   ⏳ Подключение..."
+    WriteAt $fileY "    📥 [$Num/$Total] $FileName   Подключение..."
 
     try {
         $handler = New-Object System.Net.Http.HttpClientHandler
@@ -133,7 +137,7 @@ function Start-LiveDownload {
                 $be = 12 - $bf
                 $mini = "█" * $bf + "░" * $be
 
-                $line = "    📥 [$Num/$Total] $FileName   $dlStr / $totalStr [$mini] $pct% @ $spdStr"
+                $line = "    >> [$Num/$Total] $FileName   $dlStr / $totalStr [$mini] $pct% @ $spdStr"
                 WriteAt $fileY $line
                 $lastMs = $ms
             }
@@ -148,7 +152,7 @@ function Start-LiveDownload {
             $timeStr = "{0:F1}s" -f $sw.Elapsed.TotalSeconds
 
             [Console]::SetCursorPosition(0, $fileY)
-            [Console]::Write((PadLine ""))
+            Write-Host (PadLine "") -NoNewline
             [Console]::SetCursorPosition(0, $fileY)
             Write-Host "    ✅ " -NoNewline -ForegroundColor Green
             Write-Host "[$Num/$Total] " -NoNewline -ForegroundColor DarkGray
@@ -167,9 +171,9 @@ function Start-LiveDownload {
         $errMsg = $_.Exception.Message
         if ($errMsg.Length -gt 60) { $errMsg = $errMsg.Substring(0, 57) + "..." }
 
-        # Fallback: WebClient
+        # Fallback: WebClient (тихий режим)
         try {
-            WriteAt $fileY "    📥 [$Num/$Total] $FileName   🔄 Fallback загрузка..."
+            WriteAt $fileY "    >> [$Num/$Total] $FileName   Загрузка..."
             $sw2 = [System.Diagnostics.Stopwatch]::StartNew()
             $wc = New-Object System.Net.WebClient
             $wc.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
@@ -180,7 +184,7 @@ function Start-LiveDownload {
                 $speed = $fsize / $sw2.Elapsed.TotalSeconds
 
                 [Console]::SetCursorPosition(0, $fileY)
-                [Console]::Write((PadLine ""))
+                Write-Host (PadLine "") -NoNewline
                 [Console]::SetCursorPosition(0, $fileY)
                 Write-Host "    ✅ " -NoNewline -ForegroundColor Green
                 Write-Host "[$Num/$Total] " -NoNewline -ForegroundColor DarkGray
@@ -196,7 +200,7 @@ function Start-LiveDownload {
             $errMsg2 = $_.Exception.Message
             if ($errMsg2.Length -gt 60) { $errMsg2 = $errMsg2.Substring(0, 57) + "..." }
             [Console]::SetCursorPosition(0, $fileY)
-            [Console]::Write((PadLine ""))
+            Write-Host (PadLine "") -NoNewline
             [Console]::SetCursorPosition(0, $fileY)
             Write-Host "    ❌ " -NoNewline -ForegroundColor Red
             Write-Host "[$Num/$Total] " -NoNewline -ForegroundColor DarkGray
