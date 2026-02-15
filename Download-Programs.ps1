@@ -242,6 +242,7 @@ $Categories = @(
             @{Url = "https://nl1-dl.techpowerup.com/files/KUf2FQXSWuwuSaY4Kdjh4Q/1771197789/GPU-Z.2.69.0.exe"; FileName = "GPU-Z.2.69.0.exe" }
             @{Url = "https://github.com/Orbmu2k/nvidiaProfileInspector/releases/download/2.4.0.31/nvidiaProfileInspector.zip"; FileName = "nvidiaProfileInspector.zip" }
             @{Url = "https://www.monitortests.com/download/cru-test/cru-test-2026-01.zip"; FileName = "cru-test-2026-01.zip" }
+            @{Url = "https://download.msi.com/uti_exe/vga/MSIAfterburnerSetup467Beta2.zip"; FileName = "MSIAfterburnerSetup467Beta2.zip" }
         )
     },
     @{ Name = "DRIVERS"; Icon = "💽"; Folder = "05_Drivers"; Files = @(
