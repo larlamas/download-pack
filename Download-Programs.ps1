@@ -3,19 +3,19 @@
 .SYNOPSIS
     Скрипт массового скачивания программ с красивым оформлением терминала.
 .DESCRIPTION
-    Скачивает все необходимые программы в папку C:\Downloads_Pack, 
-    распределяя их по категориям. Поддерживает запуск через iwr | iex.
+    Скачивает все необходимые программы в папку C:\Downloads_Pack,
+    распределяя их по категориям. Поддерживает параллельную загрузку.
 .NOTES
     Автор: larlamas
-    Версия: 1.0
-    Запуск: 
+    Версия: 2.0 (Turbo Edition)
+    Запуск:
       Локально:   .\Download-Programs.ps1
       Из GitHub:  irm https://raw.githubusercontent.com/larlamas/download-pack/main/Download-Programs.ps1 | iex
-    
+
     РЕКОМЕНДАЦИИ ПЕРЕД ЗАПУСКОМ:
     1. Запустите PowerShell от имени Администратора
     2. Выполните: Set-ExecutionPolicy Bypass -Scope Process -Force
-    3. Для обхода TLS ошибок скрипт автоматически настраивает [Net.SecurityProtocolType]::Tls12
+    3. TLS 1.2/1.3 настраивается автоматически
 #>
 
 # ═══════════════════════════════════════════════════════════════
@@ -25,13 +25,23 @@ $Global:RootPath = "C:\Downloads_Pack"
 $Global:TotalDownloaded = 0
 $Global:TotalFailed = 0
 $Global:TotalSkipped = 0
-$Global:FailedList = @()
+$Global:TotalBytes = 0
+$Global:FailedList = [System.Collections.ArrayList]::new()
 $Global:StartTime = Get-Date
 
-# Принудительно включаем TLS 1.2 / 1.3 для всех загрузок
+# ── Настройки скорости ──
+$Global:MaxParallel = 4          # Кол-во параллельных загрузок
+$Global:BufferSize = 262144     # 256 KB буфер для HttpClient
+$Global:TimeoutSec = 300        # Таймаут на загрузку (5 минут)
+
+# Принудительно TLS 1.2 / 1.3
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
 
-# Отключаем прогресс-бар Invoke-WebRequest для ускорения загрузки
+# Увеличиваем лимит одновременных соединений .NET (по умолчанию всего 2!)
+[Net.ServicePointManager]::DefaultConnectionLimit = 32
+[Net.ServicePointManager]::Expect100Continue = $false
+
+# Отключаем прогресс-бар Invoke-WebRequest для ускорения
 $ProgressPreference = 'SilentlyContinue'
 
 # ═══════════════════════════════════════════════════════════════
@@ -57,8 +67,8 @@ function Show-Banner {
    ║          ██║     ██║  ██║╚██████╗██║  ██╗                        ║
    ║          ╚═╝     ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝                        ║
    ║                                                                  ║
-   ║              Programs Download Manager v1.0                      ║
-   ║              Путь: C:\Downloads_Pack                             ║
+   ║         Programs Download Manager v2.0 ⚡ Turbo                  ║
+   ║         Путь: C:\Downloads_Pack                                  ║
    ║                                                                  ║
    ╚══════════════════════════════════════════════════════════════════╝
 
@@ -73,7 +83,6 @@ function Show-CategoryHeader {
         [int]$CategoryNumber,
         [int]$TotalCategories
     )
-    
     Write-Host ""
     Write-Host "  ┌──────────────────────────────────────────────────────────────┐" -ForegroundColor DarkCyan
     Write-Host "  │  $Icon  " -ForegroundColor DarkCyan -NoNewline
@@ -87,35 +96,38 @@ function Show-CategoryHeader {
     Write-Host ""
 }
 
-function Show-DownloadStart {
+function Show-DownloadResult {
     param(
         [string]$FileName,
+        [string]$Status,     # OK, FAIL, SKIP
+        [string]$Detail,
         [int]$FileNumber,
         [int]$TotalFiles
     )
-    
-    Write-Host "    ⬇  " -ForegroundColor Blue -NoNewline
-    Write-Host "[$FileNumber/$TotalFiles] " -ForegroundColor DarkGray -NoNewline
-    Write-Host "$FileName" -ForegroundColor White -NoNewline
-    Write-Host " ... " -ForegroundColor DarkGray -NoNewline
-}
-
-function Show-DownloadSuccess {
-    param([string]$Size)
-    Write-Host "✅ OK " -ForegroundColor Green -NoNewline
-    Write-Host "($Size)" -ForegroundColor DarkGray
-}
-
-function Show-DownloadFailed {
-    param([string]$Reason)
-    Write-Host "❌ ОШИБКА" -ForegroundColor Red
-    Write-Host "       └─ $Reason" -ForegroundColor DarkRed
-}
-
-function Show-DownloadSkipped {
-    param([string]$Reason)
-    Write-Host "⏭  Пропущено" -ForegroundColor DarkYellow
-    Write-Host "       └─ $Reason" -ForegroundColor DarkYellow
+    Write-Host "    " -NoNewline
+    switch ($Status) {
+        "OK" {
+            Write-Host "⬇  " -ForegroundColor Blue -NoNewline
+            Write-Host "[$FileNumber/$TotalFiles] " -ForegroundColor DarkGray -NoNewline
+            Write-Host "$FileName " -ForegroundColor White -NoNewline
+            Write-Host "✅ " -ForegroundColor Green -NoNewline
+            Write-Host "$Detail" -ForegroundColor DarkGray
+        }
+        "FAIL" {
+            Write-Host "⬇  " -ForegroundColor Blue -NoNewline
+            Write-Host "[$FileNumber/$TotalFiles] " -ForegroundColor DarkGray -NoNewline
+            Write-Host "$FileName " -ForegroundColor White -NoNewline
+            Write-Host "❌ ОШИБКА" -ForegroundColor Red
+            Write-Host "       └─ $Detail" -ForegroundColor DarkRed
+        }
+        "SKIP" {
+            Write-Host "⏭  " -ForegroundColor DarkYellow -NoNewline
+            Write-Host "[$FileNumber/$TotalFiles] " -ForegroundColor DarkGray -NoNewline
+            Write-Host "$FileName " -ForegroundColor White -NoNewline
+            Write-Host "Пропущено" -ForegroundColor DarkYellow -NoNewline
+            Write-Host " ($Detail)" -ForegroundColor DarkGray
+        }
+    }
 }
 
 function Get-HumanFileSize {
@@ -126,17 +138,19 @@ function Get-HumanFileSize {
     return "$Bytes B"
 }
 
+function Get-HumanSpeed {
+    param([double]$BytesPerSec)
+    if ($BytesPerSec -ge 1MB) { return "{0:N1} MB/s" -f ($BytesPerSec / 1MB) }
+    if ($BytesPerSec -ge 1KB) { return "{0:N1} KB/s" -f ($BytesPerSec / 1KB) }
+    return "{0:N0} B/s" -f $BytesPerSec
+}
+
 function Show-ProgressBar {
-    param(
-        [int]$Current,
-        [int]$Total
-    )
+    param([int]$Current, [int]$Total)
     $percent = [math]::Round(($Current / $Total) * 100)
     $filled = [math]::Round($percent / 2)
     $empty = 50 - $filled
-    
     $bar = "█" * $filled + "░" * $empty
-    
     Write-Host "`r  [$bar] $percent% ($Current/$Total)" -ForegroundColor Cyan -NoNewline
     if ($Current -eq $Total) { Write-Host "" }
 }
@@ -144,7 +158,14 @@ function Show-ProgressBar {
 function Show-Summary {
     $elapsed = (Get-Date) - $Global:StartTime
     $elapsedStr = "{0:mm\:ss}" -f $elapsed
-    
+    $totalSizeStr = Get-HumanFileSize $Global:TotalBytes
+    if ($elapsed.TotalSeconds -gt 0) {
+        $avgSpeed = Get-HumanSpeed ($Global:TotalBytes / $elapsed.TotalSeconds)
+    }
+    else {
+        $avgSpeed = "N/A"
+    }
+
     Write-Host ""
     Write-Host "  ╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Magenta
     Write-Host "  ║                    📊  ИТОГИ ЗАГРУЗКИ                       ║" -ForegroundColor Magenta
@@ -159,6 +180,12 @@ function Show-Summary {
     Write-Host "  ║   ⏭  Пропущено:         " -ForegroundColor Magenta -NoNewline
     Write-Host ("{0,-3}" -f $Global:TotalSkipped) -ForegroundColor Yellow -NoNewline
     Write-Host "                                   ║" -ForegroundColor Magenta
+    Write-Host "  ║   📥 Скачано:           " -ForegroundColor Magenta -NoNewline
+    Write-Host ("{0,-12}" -f $totalSizeStr) -ForegroundColor White -NoNewline
+    Write-Host "                         ║" -ForegroundColor Magenta
+    Write-Host "  ║   ⚡ Ср. скорость:      " -ForegroundColor Magenta -NoNewline
+    Write-Host ("{0,-12}" -f $avgSpeed) -ForegroundColor Cyan -NoNewline
+    Write-Host "                         ║" -ForegroundColor Magenta
     Write-Host "  ║   ⏱  Время:             " -ForegroundColor Magenta -NoNewline
     Write-Host ("{0,-8}" -f $elapsedStr) -ForegroundColor Cyan -NoNewline
     Write-Host "                              ║" -ForegroundColor Magenta
@@ -166,7 +193,7 @@ function Show-Summary {
     Write-Host "                   ║" -ForegroundColor Magenta
     Write-Host "  ║                                                              ║" -ForegroundColor Magenta
     Write-Host "  ╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Magenta
-    
+
     if ($Global:FailedList.Count -gt 0) {
         Write-Host ""
         Write-Host "  ⚠  Не удалось скачать:" -ForegroundColor Red
@@ -174,7 +201,7 @@ function Show-Summary {
             Write-Host "     • $item" -ForegroundColor DarkRed
         }
     }
-    
+
     Write-Host ""
     Write-Host "  📂 Открыть папку: " -ForegroundColor DarkGray -NoNewline
     Write-Host "explorer.exe C:\Downloads_Pack" -ForegroundColor White
@@ -182,7 +209,56 @@ function Show-Summary {
 }
 
 # ═══════════════════════════════════════════════════════════════
-# ОСНОВНАЯ ФУНКЦИЯ ЗАГРУЗКИ
+# ФУНКЦИЯ БЫСТРОЙ ЗАГРУЗКИ (HttpClient + большой буфер)
+# ═══════════════════════════════════════════════════════════════
+
+function Start-FastDownload {
+    param(
+        [string]$Url,
+        [string]$OutputPath,
+        [int]$BufferSize = 262144,
+        [int]$TimeoutSec = 300
+    )
+
+    $handler = New-Object System.Net.Http.HttpClientHandler
+    $handler.AllowAutoRedirect = $true
+    $handler.MaxAutomaticRedirections = 10
+
+    $client = New-Object System.Net.Http.HttpClient($handler)
+    $client.Timeout = [TimeSpan]::FromSeconds($TimeoutSec)
+    $client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+
+    try {
+        $response = $client.GetAsync($Url, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).Result
+
+        if (-not $response.IsSuccessStatusCode) {
+            throw "HTTP $($response.StatusCode)"
+        }
+
+        $stream = $response.Content.ReadAsStreamAsync().Result
+        $fileStream = [System.IO.File]::Create($OutputPath)
+        $buffer = New-Object byte[] $BufferSize
+        $totalRead = 0
+
+        while (($read = $stream.Read($buffer, 0, $BufferSize)) -gt 0) {
+            $fileStream.Write($buffer, 0, $read)
+            $totalRead += $read
+        }
+
+        $fileStream.Close()
+        $stream.Close()
+        $client.Dispose()
+
+        return $totalRead
+    }
+    catch {
+        if ($client) { $client.Dispose() }
+        throw $_
+    }
+}
+
+# ═══════════════════════════════════════════════════════════════
+# ОСНОВНАЯ ФУНКЦИЯ ЗАГРУЗКИ С ЗАМЕРОМ СКОРОСТИ
 # ═══════════════════════════════════════════════════════════════
 
 function Start-FileDownload {
@@ -193,77 +269,277 @@ function Start-FileDownload {
         [int]$FileNumber,
         [int]$TotalFiles
     )
-    
+
     $categoryPath = Join-Path $Global:RootPath $Category
     if (-not (Test-Path $categoryPath)) {
         New-Item -ItemType Directory -Path $categoryPath -Force | Out-Null
     }
-    
+
     $outputPath = Join-Path $categoryPath $FileName
-    
+
     # Пропуск, если файл уже скачан
     if (Test-Path $outputPath) {
         $existingSize = (Get-Item $outputPath).Length
         if ($existingSize -gt 0) {
-            Show-DownloadStart -FileName $FileName -FileNumber $FileNumber -TotalFiles $TotalFiles
-            Show-DownloadSkipped -Reason "Файл уже существует ($(Get-HumanFileSize $existingSize))"
+            Show-DownloadResult -FileName $FileName -Status "SKIP" `
+                -Detail (Get-HumanFileSize $existingSize) `
+                -FileNumber $FileNumber -TotalFiles $TotalFiles
             $Global:TotalSkipped++
             return
         }
     }
-    
-    Show-DownloadStart -FileName $FileName -FileNumber $FileNumber -TotalFiles $TotalFiles
-    
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+
     try {
-        $webClient = New-Object System.Net.WebClient
-        $webClient.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-        $webClient.DownloadFile($Url, $outputPath)
-        $webClient.Dispose()
-        
-        if (Test-Path $outputPath) {
-            $fileSize = (Get-Item $outputPath).Length
-            if ($fileSize -gt 0) {
-                Show-DownloadSuccess -Size (Get-HumanFileSize $fileSize)
-                $Global:TotalDownloaded++
-            }
-            else {
-                Remove-Item $outputPath -Force -ErrorAction SilentlyContinue
-                Show-DownloadFailed -Reason "Файл пустой (0 байт)"
-                $Global:TotalFailed++
-                $Global:FailedList += $FileName
-            }
+        # Метод 1: Быстрый HttpClient с большим буфером
+        $bytesDownloaded = Start-FastDownload -Url $Url -OutputPath $outputPath `
+            -BufferSize $Global:BufferSize -TimeoutSec $Global:TimeoutSec
+
+        $sw.Stop()
+
+        if ($bytesDownloaded -gt 0) {
+            $speed = $bytesDownloaded / $sw.Elapsed.TotalSeconds
+            $sizeStr = Get-HumanFileSize $bytesDownloaded
+            $speedStr = Get-HumanSpeed $speed
+
+            Show-DownloadResult -FileName $FileName -Status "OK" `
+                -Detail "$sizeStr @ $speedStr" `
+                -FileNumber $FileNumber -TotalFiles $TotalFiles
+
+            $Global:TotalDownloaded++
+            $Global:TotalBytes += $bytesDownloaded
         }
         else {
-            Show-DownloadFailed -Reason "Файл не создан"
+            Remove-Item $outputPath -Force -ErrorAction SilentlyContinue
+            Show-DownloadResult -FileName $FileName -Status "FAIL" `
+                -Detail "Файл пустой (0 байт)" `
+                -FileNumber $FileNumber -TotalFiles $TotalFiles
             $Global:TotalFailed++
-            $Global:FailedList += $FileName
+            $Global:FailedList.Add($FileName) | Out-Null
         }
     }
     catch {
-        # Fallback на Invoke-WebRequest
+        $sw.Stop()
+        Remove-Item $outputPath -Force -ErrorAction SilentlyContinue
+
+        # Fallback: WebClient
         try {
-            Invoke-WebRequest -Uri $Url -OutFile $outputPath -UseBasicParsing -ErrorAction Stop `
-                -Headers @{"User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
-            
+            $sw2 = [System.Diagnostics.Stopwatch]::StartNew()
+            $wc = New-Object System.Net.WebClient
+            $wc.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            $wc.DownloadFile($Url, $outputPath)
+            $wc.Dispose()
+            $sw2.Stop()
+
             if ((Test-Path $outputPath) -and ((Get-Item $outputPath).Length -gt 0)) {
                 $fileSize = (Get-Item $outputPath).Length
-                Show-DownloadSuccess -Size (Get-HumanFileSize $fileSize)
+                $speed = $fileSize / $sw2.Elapsed.TotalSeconds
+                $sizeStr = Get-HumanFileSize $fileSize
+                $speedStr = Get-HumanSpeed $speed
+
+                Show-DownloadResult -FileName $FileName -Status "OK" `
+                    -Detail "$sizeStr @ $speedStr (fallback)" `
+                    -FileNumber $FileNumber -TotalFiles $TotalFiles
+
                 $Global:TotalDownloaded++
+                $Global:TotalBytes += $fileSize
             }
             else {
                 Remove-Item $outputPath -Force -ErrorAction SilentlyContinue
-                Show-DownloadFailed -Reason "Файл пустой после fallback"
+                Show-DownloadResult -FileName $FileName -Status "FAIL" `
+                    -Detail "Файл пустой после fallback" `
+                    -FileNumber $FileNumber -TotalFiles $TotalFiles
                 $Global:TotalFailed++
-                $Global:FailedList += $FileName
+                $Global:FailedList.Add($FileName) | Out-Null
             }
         }
         catch {
             Remove-Item $outputPath -Force -ErrorAction SilentlyContinue
             $errMsg = $_.Exception.Message
-            if ($errMsg.Length -gt 80) { $errMsg = $errMsg.Substring(0, 77) + "..." }
-            Show-DownloadFailed -Reason $errMsg
+            if ($errMsg.Length -gt 70) { $errMsg = $errMsg.Substring(0, 67) + "..." }
+            Show-DownloadResult -FileName $FileName -Status "FAIL" `
+                -Detail $errMsg `
+                -FileNumber $FileNumber -TotalFiles $TotalFiles
             $Global:TotalFailed++
-            $Global:FailedList += $FileName
+            $Global:FailedList.Add($FileName) | Out-Null
+        }
+    }
+}
+
+# ═══════════════════════════════════════════════════════════════
+# ПАРАЛЛЕЛЬНАЯ ЗАГРУЗКА ЦЕЛОЙ КАТЕГОРИИ
+# ═══════════════════════════════════════════════════════════════
+
+function Start-ParallelCategoryDownload {
+    param(
+        [array]$Files,
+        [string]$CategoryFolder,
+        [int]$MaxJobs
+    )
+
+    $categoryPath = Join-Path $Global:RootPath $CategoryFolder
+    if (-not (Test-Path $categoryPath)) {
+        New-Item -ItemType Directory -Path $categoryPath -Force | Out-Null
+    }
+
+    # Скрипт-блок для фоновой загрузки
+    $downloadScript = {
+        param($Url, $OutputPath, $BufferSize, $TimeoutSec)
+
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+        [Net.ServicePointManager]::DefaultConnectionLimit = 32
+
+        $result = @{ Success = $false; Bytes = 0; Speed = 0; Error = "" }
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+
+        try {
+            $handler = New-Object System.Net.Http.HttpClientHandler
+            $handler.AllowAutoRedirect = $true
+            $handler.MaxAutomaticRedirections = 10
+            $client = New-Object System.Net.Http.HttpClient($handler)
+            $client.Timeout = [TimeSpan]::FromSeconds($TimeoutSec)
+            $client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+            $response = $client.GetAsync($Url, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).Result
+            if (-not $response.IsSuccessStatusCode) { throw "HTTP $($response.StatusCode)" }
+
+            $stream = $response.Content.ReadAsStreamAsync().Result
+            $fileStream = [System.IO.File]::Create($OutputPath)
+            $buffer = New-Object byte[] $BufferSize
+            $totalRead = 0
+            while (($read = $stream.Read($buffer, 0, $BufferSize)) -gt 0) {
+                $fileStream.Write($buffer, 0, $read)
+                $totalRead += $read
+            }
+            $fileStream.Close(); $stream.Close(); $client.Dispose()
+            $sw.Stop()
+
+            if ($totalRead -gt 0) {
+                $result.Success = $true
+                $result.Bytes = $totalRead
+                $result.Speed = $totalRead / $sw.Elapsed.TotalSeconds
+            }
+        }
+        catch {
+            # Fallback: WebClient
+            try {
+                $sw2 = [System.Diagnostics.Stopwatch]::StartNew()
+                $wc = New-Object System.Net.WebClient
+                $wc.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                $wc.DownloadFile($Url, $OutputPath)
+                $wc.Dispose()
+                $sw2.Stop()
+
+                $fi = Get-Item $OutputPath -ErrorAction SilentlyContinue
+                if ($fi -and $fi.Length -gt 0) {
+                    $result.Success = $true
+                    $result.Bytes = $fi.Length
+                    $result.Speed = $fi.Length / $sw2.Elapsed.TotalSeconds
+                }
+                else {
+                    Remove-Item $OutputPath -Force -ErrorAction SilentlyContinue
+                    $result.Error = "Файл пустой"
+                }
+            }
+            catch {
+                Remove-Item $OutputPath -Force -ErrorAction SilentlyContinue
+                $result.Error = $_.Exception.Message
+                if ($result.Error.Length -gt 70) { $result.Error = $result.Error.Substring(0, 67) + "..." }
+            }
+        }
+        return $result
+    }
+
+    # Запускаем задания пачками
+    $jobs = @()
+    $fileNum = 0
+    $totalInCat = $Files.Count
+
+    foreach ($file in $Files) {
+        $fileNum++
+        $outPath = Join-Path $categoryPath $file.FileName
+
+        # Пропуск, если файл уже скачан
+        if ((Test-Path $outPath) -and ((Get-Item $outPath).Length -gt 0)) {
+            $existingSize = (Get-Item $outPath).Length
+            Show-DownloadResult -FileName $file.FileName -Status "SKIP" `
+                -Detail (Get-HumanFileSize $existingSize) `
+                -FileNumber $fileNum -TotalFiles $totalInCat
+            $Global:TotalSkipped++
+            continue
+        }
+
+        Write-Host "    ⬇  " -ForegroundColor Blue -NoNewline
+        Write-Host "[$fileNum/$totalInCat] " -ForegroundColor DarkGray -NoNewline
+        Write-Host "$($file.FileName) " -ForegroundColor White -NoNewline
+        Write-Host "⏳ Загрузка..." -ForegroundColor DarkYellow
+
+        $job = Start-Job -ScriptBlock $downloadScript `
+            -ArgumentList $file.Url, $outPath, $Global:BufferSize, $Global:TimeoutSec
+
+        $jobs += @{
+            Job        = $job
+            FileName   = $file.FileName
+            FileNumber = $fileNum
+            TotalFiles = $totalInCat
+        }
+
+        # Контроль параллельности: ждём, если набралось $MaxJobs
+        while (($jobs | Where-Object { $_.Job.State -eq 'Running' }).Count -ge $MaxJobs) {
+            Start-Sleep -Milliseconds 500
+        }
+
+        # Обработка завершённых
+        $completed = $jobs | Where-Object { $_.Job.State -ne 'Running' }
+        foreach ($c in $completed) {
+            $result = Receive-Job -Job $c.Job
+            Remove-Job -Job $c.Job -Force
+
+            if ($result.Success) {
+                $sizeStr = Get-HumanFileSize $result.Bytes
+                $speedStr = Get-HumanSpeed $result.Speed
+                Show-DownloadResult -FileName $c.FileName -Status "OK" `
+                    -Detail "$sizeStr @ $speedStr" `
+                    -FileNumber $c.FileNumber -TotalFiles $c.TotalFiles
+                $Global:TotalDownloaded++
+                $Global:TotalBytes += $result.Bytes
+            }
+            else {
+                Show-DownloadResult -FileName $c.FileName -Status "FAIL" `
+                    -Detail $result.Error `
+                    -FileNumber $c.FileNumber -TotalFiles $c.TotalFiles
+                $Global:TotalFailed++
+                $Global:FailedList.Add($c.FileName) | Out-Null
+            }
+        }
+        $jobs = @($jobs | Where-Object { $_.Job.State -eq 'Running' -or $_.Job.Id -notin ($completed.Job.Id) })
+    }
+
+    # Дожидаемся оставшихся
+    $remaining = $jobs | Where-Object { $_.Job -ne $null }
+    if ($remaining.Count -gt 0) {
+        $remaining.Job | Wait-Job | Out-Null
+        foreach ($c in $remaining) {
+            $result = Receive-Job -Job $c.Job
+            Remove-Job -Job $c.Job -Force
+
+            if ($result.Success) {
+                $sizeStr = Get-HumanFileSize $result.Bytes
+                $speedStr = Get-HumanSpeed $result.Speed
+                Show-DownloadResult -FileName $c.FileName -Status "OK" `
+                    -Detail "$sizeStr @ $speedStr" `
+                    -FileNumber $c.FileNumber -TotalFiles $c.TotalFiles
+                $Global:TotalDownloaded++
+                $Global:TotalBytes += $result.Bytes
+            }
+            else {
+                Show-DownloadResult -FileName $c.FileName -Status "FAIL" `
+                    -Detail $result.Error `
+                    -FileNumber $c.FileNumber -TotalFiles $c.TotalFiles
+                $Global:TotalFailed++
+                $Global:FailedList.Add($c.FileName) | Out-Null
+            }
         }
     }
 }
@@ -339,10 +615,7 @@ $Categories = @(
 # ЗАПУСК
 # ═══════════════════════════════════════════════════════════════
 
-# Очистка экрана
 Clear-Host
-
-# Показываем баннер
 Show-Banner
 
 # Информация о среде
@@ -354,17 +627,15 @@ Write-Host "  │  PS:        $($PSVersionTable.PSVersion)" -ForegroundColor Dar
 Write-Host "  │  Дата:      $(Get-Date -Format 'dd.MM.yyyy HH:mm:ss')" -ForegroundColor DarkGray
 Write-Host "  │  Права:     " -ForegroundColor DarkGray -NoNewline
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if ($isAdmin) {
-    Write-Host "Администратор ✅" -ForegroundColor Green
-}
-else {
-    Write-Host "Обычный пользователь ⚠" -ForegroundColor Yellow
-}
+if ($isAdmin) { Write-Host "Администратор ✅" -ForegroundColor Green }
+else { Write-Host "Обычный пользователь ⚠" -ForegroundColor Yellow }
 Write-Host "  │  TLS:       1.2 / 1.3 ✅" -ForegroundColor DarkGray
+Write-Host "  │  Буфер:     $(Get-HumanFileSize $Global:BufferSize) ⚡" -ForegroundColor DarkGray
+Write-Host "  │  Соединения: $([Net.ServicePointManager]::DefaultConnectionLimit)" -ForegroundColor DarkGray
 Write-Host "  │  Целевая:   $Global:RootPath" -ForegroundColor DarkGray
 Write-Host "  └──────────────────────────────────────────────────────────────┘" -ForegroundColor DarkGray
 
-# Подсчёт общего количества файлов
+# Подсчёт файлов
 $totalFiles = 0
 foreach ($cat in $Categories) { $totalFiles += $cat.Files.Count }
 Write-Host ""
@@ -373,7 +644,29 @@ Write-Host "$totalFiles" -ForegroundColor Yellow -NoNewline
 Write-Host " в " -ForegroundColor White -NoNewline
 Write-Host "$($Categories.Count)" -ForegroundColor Yellow -NoNewline
 Write-Host " категориях" -ForegroundColor White
+
+# Выбор режима
 Write-Host ""
+Write-Host "  ─────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+Write-Host "  Выберите режим загрузки:" -ForegroundColor White
+Write-Host ""
+Write-Host "    [1] ⚡ Параллельная загрузка" -ForegroundColor Cyan -NoNewline
+Write-Host "  ($($Global:MaxParallel) файла одновременно — БЫСТРО)" -ForegroundColor DarkGray
+Write-Host "    [2] 📥 Последовательная загрузка" -ForegroundColor White -NoNewline
+Write-Host "  (по одному — стабильно)" -ForegroundColor DarkGray
+Write-Host ""
+$modeChoice = Read-Host "  Режим (1/2, Enter = 1)"
+if ([string]::IsNullOrWhiteSpace($modeChoice)) { $modeChoice = "1" }
+$useParallel = ($modeChoice -eq "1")
+
+if ($useParallel) {
+    Write-Host ""
+    Write-Host "  ⚡ Режим: ПАРАЛЛЕЛЬНАЯ загрузка ($($Global:MaxParallel) потока)" -ForegroundColor Cyan
+}
+else {
+    Write-Host ""
+    Write-Host "  📥 Режим: ПОСЛЕДОВАТЕЛЬНАЯ загрузка" -ForegroundColor White
+}
 
 # Создаём корневую папку
 if (-not (Test-Path $Global:RootPath)) {
@@ -384,41 +677,46 @@ else {
     Write-Host "  📁 Папка существует: $Global:RootPath" -ForegroundColor DarkGray
 }
 
-# Пауза перед началом
 Write-Host ""
 Write-Host "  ─────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
 Write-Host "  ▶  Начинаем загрузку через 3 секунды..." -ForegroundColor Cyan
 Start-Sleep -Seconds 3
 
-# Глобальный счётчик файлов
+# Глобальный счётчик
 $globalFileNum = 0
-
-# Обработка каждой категории
 $catNum = 0
+
 foreach ($category in $Categories) {
     $catNum++
-    
+
     Show-CategoryHeader -CategoryName $category.Name -Icon $category.Icon `
         -CategoryNumber $catNum -TotalCategories $Categories.Count
-    
-    $localNum = 0
-    foreach ($file in $category.Files) {
-        $localNum++
-        $globalFileNum++
-        
-        Start-FileDownload -Url $file.Url -FileName $file.FileName `
-            -Category $category.Folder `
-            -FileNumber $localNum -TotalFiles $category.Files.Count
+
+    if ($useParallel) {
+        # ⚡ Параллельная загрузка
+        Start-ParallelCategoryDownload -Files $category.Files `
+            -CategoryFolder $category.Folder -MaxJobs $Global:MaxParallel
+        $globalFileNum += $category.Files.Count
     }
-    
-    # Прогресс-бар после каждой категории
+    else {
+        # 📥 Последовательная загрузка
+        $localNum = 0
+        foreach ($file in $category.Files) {
+            $localNum++
+            $globalFileNum++
+            Start-FileDownload -Url $file.Url -FileName $file.FileName `
+                -Category $category.Folder `
+                -FileNumber $localNum -TotalFiles $category.Files.Count
+        }
+    }
+
     Show-ProgressBar -Current $globalFileNum -Total $totalFiles
 }
 
 # Итоги
 Show-Summary
 
-# Предложение открыть папку
+# Открыть папку
 Write-Host ""
 $openFolder = Read-Host "  Открыть папку с загрузками? (Y/n)"
 if ($openFolder -ne 'n' -and $openFolder -ne 'N') {
@@ -426,5 +724,5 @@ if ($openFolder -ne 'n' -and $openFolder -ne 'N') {
 }
 
 Write-Host ""
-Write-Host "  👋 Готово! Спасибо за использование Download Pack." -ForegroundColor Cyan
+Write-Host "  👋 Готово! Спасибо за использование Download Pack v2.0 ⚡" -ForegroundColor Cyan
 Write-Host ""
