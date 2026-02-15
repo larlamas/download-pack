@@ -254,7 +254,7 @@ $Categories = @(
             @{Url = "https://download.semiconductor.samsung.com/resources/software-resources/Samsung_Magician_Installer_Official_9.0.0.910.exe"; FileName = "Samsung_Magician_Installer_Official_9.0.0.910.exe" }
             @{Url = "https://fael-downloads-prod.focusrite.com/customer/prod/downloads/focusrite_control_v3_27_0.exe"; FileName = "focusrite_control_v3_27_0.exe" }
             @{Url = "https://fael-downloads-prod.focusrite.com/customer/prod/s3fs-public/downloads/Focusrite%20Control%20-%203.6.0.1822_0.exe"; FileName = "Focusrite Control - 3.6.0.1822_0.exe" }
-            @{Url = "https://www2.ati.com/drivers/amd_ryzen_master_3_0_1_4819.exe"; FileName = "amd_ryzen_master_3_0_1_4819.exe" }
+            @{Url = "https://download.amd.com/Desktop/amd_ryzen_master_3_0_0_4199.exe"; FileName = "amd_ryzen_master_3_0_0_4199.exe" }
         )
     }
 )
