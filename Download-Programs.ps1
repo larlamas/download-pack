@@ -317,7 +317,7 @@ $Categories = @(
             @{Url = "https://www.techpowerup.com/download/amd-ryzen-chipset-drivers/"; FileName = "AMD_Chipset_Software_7.11.26.2142.exe" }
             @{Url = "https://www.techpowerup.com/download/nvidia-geforce-graphics-drivers/"; FileName = "591.86-desktop-win10-win11-64bit-international-dch-whql.exe" }
             @{Url = "https://lianli-update.oss-cn-beijing.aliyuncs.com/L3_CX/20260123-L-Connect%203-x64-hotfix-hotfix-change-sdk-v2.1.15-f93e2a64.exe"; FileName = "20260123-L-Connect 3-x64-hotfix-hotfix-change-sdk-v2.1.15-f93e2a64.exe" }
-            @{Url = "https://drive.usercontent.google.com/download?id=1yC3Fg2yfSplqsACATQifmbL62FU_P3p2&export=download&authuser=0&confirm=t&uuid=a25d3845-aa1d-4e54-ac6a-e2e5493f0433&at=APcXIO006tLTPcoV1vcZY4znI_Vm%3A1771155597078"; FileName = "X2 CrazyLight Software.exe" }
+            @{Url = "https://drive.usercontent.google.com/download?id=1yC3Fg2yfSplqsACATQifmbL62FU_P3p2&export=download&authuser=0&confirm=t&uuid=a25d3845-aa1d-4e54-ac6a-e2e5493f0433&at=APcXIO006tLTPcoV1vcZY4znI_Vm%3A1771155597078"; FileName = "Pulsar v1.29 setup (2025.12.18).zip" }
             @{Url = "https://www.pulsar.gg/cdn/shop/t/79/assets/download.svg?v=8351372234618339141713834745"; FileName = "X2 CrazyLight Mini Gaming Mouse Firmware Update.svg" }
             @{Url = "https://download.semiconductor.samsung.com/resources/software-resources/Samsung_Magician_Installer_Official_9.0.0.910.exe"; FileName = "Samsung_Magician_Installer_Official_9.0.0.910.exe" }
             @{Url = "https://fael-downloads-prod.focusrite.com/customer/prod/downloads/focusrite_control_v3_27_0.exe"; FileName = "focusrite_control_v3_27_0.exe" }
