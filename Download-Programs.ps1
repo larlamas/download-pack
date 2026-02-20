@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # Download Pack v3.0 — Dynamic UI Edition
 # irm https://raw.githubusercontent.com/larlamas/download-pack/main/Download-Programs.ps1 | iex
 
@@ -34,8 +34,68 @@ function PadLine([string]$s) {
     return $s.PadRight($w)
 }
 function WriteAt([int]$y, [string]$text) {
-    [Console]::SetCursorPosition(0, $y)
+    try { [Console]::SetCursorPosition(0, $y) } catch {}
     Write-Host (PadLine $text) -NoNewline
+}
+
+function Resolve-TpuUrl([string]$Url) {
+    $ret = @{ Url = $Url; FileName = "" }
+    if ($Url -notmatch "techpowerup\.com/download/") { return $ret }
+    try {
+        Add-Type -AssemblyName System.Net.Http
+        $handler = New-Object System.Net.Http.HttpClientHandler
+        $handler.AllowAutoRedirect = $false
+        $client = New-Object System.Net.Http.HttpClient($handler)
+        $client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        
+        $resp1 = $client.GetAsync($Url).Result
+        if (!$resp1.IsSuccessStatusCode) { return $ret }
+        $html = $resp1.Content.ReadAsStringAsync().Result
+        
+        $blocks = [regex]::Matches($html, 'class="filename"[^>]*>\s*(.*?)\s*</div>[\s\S]*?name="id"\s+value="(\d+)"')
+        if ($blocks.Count -gt 0) {
+            # По умолчанию всегда берём самый первый в списке (он же самый свежий релиз на TechPowerUp)
+            $selectedBlock = $blocks[0]
+            
+            # Дополнительная фильтрация для специфичных программ
+            if ($Url -match "nvidia-geforce-graphics-drivers") {
+                foreach ($b in $blocks) {
+                    if ($b.Groups[1].Value -match "-desktop-win10-win11-64bit-international-dch-whql\.exe") {
+                        $selectedBlock = $b
+                        break
+                    }
+                }
+            }
+            elseif ($Url -match "techpowerup-gpu-z") {
+                # Не берем брендированную ASUS ROG версию, если она висит первой
+                foreach ($b in $blocks) {
+                    if ($b.Groups[1].Value -notmatch "ASUS_ROG") {
+                        $selectedBlock = $b
+                        break
+                    }
+                }
+            }
+            
+            $ret.FileName = $selectedBlock.Groups[1].Value.Trim()
+            $id = $selectedBlock.Groups[2].Value
+
+            $dict = New-Object "System.Collections.Generic.Dictionary[string,string]"
+            $dict.Add("id", $id)
+            $dict.Add("server_id", "27") # NL server
+            $content = New-Object System.Net.Http.FormUrlEncodedContent($dict)
+            
+            $resp2 = $client.PostAsync($Url, $content).Result
+            if ($resp2.StatusCode -eq 302 -or $resp2.StatusCode -eq 301) {
+                $newUrl = $resp2.Headers.Location.OriginalString
+                if ($newUrl) {
+                    $ret.Url = $newUrl
+                }
+            }
+        }
+        $client.Dispose()
+    }
+    catch { }
+    return $ret
 }
 
 # ═══════════════ GLOBAL BAR ═══════════════
@@ -76,6 +136,14 @@ function Start-LiveDownload {
     param([string]$Url, [string]$FileName, [string]$CatFolder,
         [int]$Num, [int]$Total, [int]$GlobalNum, [int]$GlobalTotal, [int]$BarY)
 
+    # Resolve TPU URL before checking file existence
+    $TargetUrl = $Url
+    if ($Url -match "techpowerup\.com/download/") {
+        $tpuInfo = Resolve-TpuUrl $Url
+        if ($tpuInfo.Url) { $TargetUrl = $tpuInfo.Url }
+        if ($tpuInfo.FileName) { $FileName = $tpuInfo.FileName }
+    }
+
     $catPath = Join-Path $Global:RootPath $CatFolder
     if (!(Test-Path $catPath)) { New-Item -ItemType Directory -Path $catPath -Force | Out-Null }
     $outPath = Join-Path $catPath $FileName
@@ -86,7 +154,7 @@ function Start-LiveDownload {
     # === SKIP ===
     if ((Test-Path $outPath) -and ((Get-Item $outPath).Length -gt 0)) {
         $sz = (Get-Item $outPath).Length
-        [Console]::SetCursorPosition(0, $fileY)
+        try { [Console]::SetCursorPosition(0, $fileY) } catch {}
         Write-Host "    ⏭  " -NoNewline -ForegroundColor DarkYellow
         Write-Host "[$Num/$Total] " -NoNewline -ForegroundColor DarkGray
         Write-Host "$FileName" -NoNewline -ForegroundColor White
@@ -104,11 +172,11 @@ function Start-LiveDownload {
         $handler.AllowAutoRedirect = $true
         $handler.MaxAutomaticRedirections = 10
         $client = New-Object System.Net.Http.HttpClient($handler)
-        $client.Timeout = [TimeSpan]::FromSeconds(300)
+        $client.Timeout = [TimeSpan]::FromSeconds(15)
         $client.DefaultRequestHeaders.Add("User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
-        $resp = $client.GetAsync($Url,
+        $resp = $client.GetAsync($TargetUrl,
             [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).Result
         if (!$resp.IsSuccessStatusCode) { throw "HTTP $($resp.StatusCode)" }
 
@@ -151,9 +219,9 @@ function Start-LiveDownload {
             $spdStr = Spd $speed
             $timeStr = "{0:F1}s" -f $sw.Elapsed.TotalSeconds
 
-            [Console]::SetCursorPosition(0, $fileY)
+            try { [Console]::SetCursorPosition(0, $fileY) } catch {}
             Write-Host (PadLine "") -NoNewline
-            [Console]::SetCursorPosition(0, $fileY)
+            try { [Console]::SetCursorPosition(0, $fileY) } catch {}
             Write-Host "    ✅ " -NoNewline -ForegroundColor Green
             Write-Host "[$Num/$Total] " -NoNewline -ForegroundColor DarkGray
             Write-Host "$FileName" -NoNewline -ForegroundColor White
@@ -177,15 +245,15 @@ function Start-LiveDownload {
             $sw2 = [System.Diagnostics.Stopwatch]::StartNew()
             $wc = New-Object System.Net.WebClient
             $wc.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-            $wc.DownloadFile($Url, $outPath); $wc.Dispose(); $sw2.Stop()
+            $wc.DownloadFile($TargetUrl, $outPath); $wc.Dispose(); $sw2.Stop()
 
             if ((Test-Path $outPath) -and ((Get-Item $outPath).Length -gt 0)) {
                 $fsize = (Get-Item $outPath).Length
                 $speed = $fsize / $sw2.Elapsed.TotalSeconds
 
-                [Console]::SetCursorPosition(0, $fileY)
+                try { [Console]::SetCursorPosition(0, $fileY) } catch {}
                 Write-Host (PadLine "") -NoNewline
-                [Console]::SetCursorPosition(0, $fileY)
+                try { [Console]::SetCursorPosition(0, $fileY) } catch {}
                 Write-Host "    ✅ " -NoNewline -ForegroundColor Green
                 Write-Host "[$Num/$Total] " -NoNewline -ForegroundColor DarkGray
                 Write-Host "$FileName" -NoNewline -ForegroundColor White
@@ -199,9 +267,9 @@ function Start-LiveDownload {
         catch {
             $errMsg2 = $_.Exception.Message
             if ($errMsg2.Length -gt 60) { $errMsg2 = $errMsg2.Substring(0, 57) + "..." }
-            [Console]::SetCursorPosition(0, $fileY)
+            try { [Console]::SetCursorPosition(0, $fileY) } catch {}
             Write-Host (PadLine "") -NoNewline
-            [Console]::SetCursorPosition(0, $fileY)
+            try { [Console]::SetCursorPosition(0, $fileY) } catch {}
             Write-Host "    ❌ " -NoNewline -ForegroundColor Red
             Write-Host "[$Num/$Total] " -NoNewline -ForegroundColor DarkGray
             Write-Host "$FileName" -NoNewline -ForegroundColor White
@@ -226,7 +294,7 @@ $Categories = @(
     @{ Name = "START PROGS"; Icon = "⚙️"; Folder = "02_Start_Progs"; Files = @(
             @{Url = "https://www.7-zip.org/a/7z2600-x64.exe"; FileName = "7z2600-x64.exe" }
             @{Url = "https://download.microsoft.com/download/1/7/1/1718ccc4-6315-4d8e-9543-8e28a4e18c4c/dxwebsetup.exe"; FileName = "dxwebsetup.exe" }
-            @{Url = "https://nl1-dl.techpowerup.com/files/yVj4unqbFybs53DtKdfJ9A/1771191835/Visual-C-Runtimes-All-in-One-Dec-2025.zip"; FileName = "Visual-C-Runtimes-All-in-One-Dec-2025.zip" }
+            @{Url = "https://www.techpowerup.com/download/visual-c-redistributable-runtime-package-all-in-one/"; FileName = "Visual-C-Runtimes-All-in-One-Dec-2025.zip" }
             @{Url = "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/6.0.36/windowsdesktop-runtime-6.0.36-win-x64.exe"; FileName = "windowsdesktop-runtime-6.0.36-win-x64.exe" }
         )
     },
@@ -237,18 +305,17 @@ $Categories = @(
         )
     },
     @{ Name = "VIDEOCARD"; Icon = "🖥️"; Folder = "04_Videocard"; Files = @(
-            @{Url = "https://nl1-dl.techpowerup.com/files/9QEeaOQAH8zcOSfZlt9_Uw/1771197642/NVCleanstall_1.19.0.exe"; FileName = "NVCleanstall_1.19.0.exe" }
-            @{Url = "https://nl1-dl.techpowerup.com/files/p76N8gwtPRPEg6xAZevfgQ/1771197703/DDU-v18.1.4.1_setup.exe"; FileName = "DDU-v18.1.4.1_setup.exe" }
-            @{Url = "https://nl1-dl.techpowerup.com/files/KUf2FQXSWuwuSaY4Kdjh4Q/1771197789/GPU-Z.2.69.0.exe"; FileName = "GPU-Z.2.69.0.exe" }
+            @{Url = "https://www.techpowerup.com/download/techpowerup-nvcleanstall/"; FileName = "NVCleanstall_1.19.0.exe" }
+            @{Url = "https://www.techpowerup.com/download/display-driver-uninstaller-ddu/"; FileName = "DDU-v18.1.4.1_setup.exe" }
+            @{Url = "https://www.techpowerup.com/download/techpowerup-gpu-z/"; FileName = "GPU-Z.2.69.0.exe" }
             @{Url = "https://github.com/Orbmu2k/nvidiaProfileInspector/releases/download/2.4.0.31/nvidiaProfileInspector.zip"; FileName = "nvidiaProfileInspector.zip" }
-            @{Url = "https://www.monitortests.com/download/cru-test/cru-test-2026-01.zip"; FileName = "cru-test-2026-01.zip" }
             @{Url = "https://download.msi.com/uti_exe/vga/MSIAfterburnerSetup467Beta2.zip"; FileName = "MSIAfterburnerSetup467Beta2.zip" }
         )
     },
     @{ Name = "DRIVERS"; Icon = "💽"; Folder = "05_Drivers"; Files = @(
             @{Url = "https://driveroff.net/drv/SDI_1.26.0.7z"; FileName = "SDI_1.26.0.7z" }
-            @{Url = "https://nl1-dl.techpowerup.com/files/YWDgCLKJMu0AMc5mIRnsNA/1771197767/AMD_Chipset_Software_7.11.26.2142.exe"; FileName = "AMD_Chipset_Software_7.11.26.2142.exe" }
-            @{Url = "https://nl1-dl.techpowerup.com/files/cJX7Ynfxb01_TC1FDjXZKw/1771197730/591.86-desktop-win10-win11-64bit-international-dch-whql.exe"; FileName = "591.86-desktop-win10-win11-64bit-international-dch-whql.exe" }
+            @{Url = "https://www.techpowerup.com/download/amd-ryzen-chipset-drivers/"; FileName = "AMD_Chipset_Software_7.11.26.2142.exe" }
+            @{Url = "https://www.techpowerup.com/download/nvidia-geforce-graphics-drivers/"; FileName = "591.86-desktop-win10-win11-64bit-international-dch-whql.exe" }
             @{Url = "https://lianli-update.oss-cn-beijing.aliyuncs.com/L3_CX/20260123-L-Connect%203-x64-hotfix-hotfix-change-sdk-v2.1.15-f93e2a64.exe"; FileName = "20260123-L-Connect 3-x64-hotfix-hotfix-change-sdk-v2.1.15-f93e2a64.exe" }
             @{Url = "https://drive.usercontent.google.com/download?id=1yC3Fg2yfSplqsACATQifmbL62FU_P3p2&export=download&authuser=0&confirm=t&uuid=a25d3845-aa1d-4e54-ac6a-e2e5493f0433&at=APcXIO006tLTPcoV1vcZY4znI_Vm%3A1771155597078"; FileName = "X2 CrazyLight Software.exe" }
             @{Url = "https://www.pulsar.gg/cdn/shop/t/79/assets/download.svg?v=8351372234618339141713834745"; FileName = "X2 CrazyLight Mini Gaming Mouse Firmware Update.svg" }
@@ -315,8 +382,8 @@ foreach ($cat in $Categories) {
             -GlobalNum $globalNum -GlobalTotal $totalFiles -BarY $barY
 
         # Ensure cursor is below the bar
-        if ([Console]::CursorTop -le $barY) {
-            [Console]::SetCursorPosition(0, $barY + 1)
+        if ([Console]::CursorTop -lt ($barY + 1)) {
+            try { [Console]::SetCursorPosition(0, $barY + 1) } catch {}
         }
     }
 }

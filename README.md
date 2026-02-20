@@ -96,7 +96,7 @@ C:\Downloads_Pack\
 │   ├── DDU-v18.1.4.1_setup.exe
 │   ├── GPU-Z.2.69.0.exe
 │   ├── nvidiaProfileInspector.zip
-│   └── CRU-test-2026-01.zip
+│   └── MSIAfterburnerSetup467Beta2.zip
 │
 └── 📂 05_Drivers\
     ├── SDI_1.26.0.7z
