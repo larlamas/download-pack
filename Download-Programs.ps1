@@ -98,6 +98,25 @@ function Resolve-TpuUrl([string]$Url) {
     return $ret
 }
 
+function Resolve-GithubLatestUrl([string]$ApiUrl, [string]$FilePattern) {
+    $ret = @{ Url = ""; FileName = "" }
+    try {
+        $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DownloadPack/3.0" }
+        $json = Invoke-RestMethod -Uri $ApiUrl -Headers $headers -ErrorAction Stop
+        
+        $regexPattern = "^" + [regex]::Escape($FilePattern).Replace("\*", ".*") + "$"
+        foreach ($asset in $json.assets) {
+            if ($asset.name -match $regexPattern) {
+                $ret.Url = $asset.browser_download_url
+                $ret.FileName = $asset.name
+                break
+            }
+        }
+    }
+    catch { }
+    return $ret
+}
+
 # ═══════════════ GLOBAL BAR ═══════════════
 function Update-Bar([int]$cur, [int]$total, [int]$barY) {
     $pct = if ($total -gt 0) { [math]::Round($cur / $total * 100) } else { 0 }
@@ -136,12 +155,20 @@ function Start-LiveDownload {
     param([string]$Url, [string]$FileName, [string]$CatFolder,
         [int]$Num, [int]$Total, [int]$GlobalNum, [int]$GlobalTotal, [int]$BarY)
 
-    # Resolve TPU URL before checking file existence
+    # Resolve dynamic URLs before checking file existence
     $TargetUrl = $Url
     if ($Url -match "techpowerup\.com/download/") {
         $tpuInfo = Resolve-TpuUrl $Url
         if ($tpuInfo.Url) { $TargetUrl = $tpuInfo.Url }
         if ($tpuInfo.FileName) { $FileName = $tpuInfo.FileName }
+    }
+    elseif ($Url -match "^github-latest:(.+)\|(.+)$") {
+        $repoInfo = $Matches[1]
+        $filePattern = $Matches[2]
+        $apiUrl = "https://api.github.com/repos/$repoInfo/releases/latest"
+        $ghInfo = Resolve-GithubLatestUrl $apiUrl $filePattern
+        if ($ghInfo.Url) { $TargetUrl = $ghInfo.Url }
+        if ($ghInfo.FileName) { $FileName = $ghInfo.FileName }
     }
 
     $catPath = Join-Path $Global:RootPath $CatFolder
@@ -289,6 +316,7 @@ $Categories = @(
             @{Url = "https://cdn.fastly.steamstatic.com/client/installer/SteamSetup.exe"; FileName = "SteamSetup.exe" }
             @{Url = "https://discord.com/api/downloads/distributions/app/installers/latest?channel=stable&platform=win&arch=x64"; FileName = "DiscordSetup.exe" }
             @{Url = "https://telegram.org/dl/desktop/win64"; FileName = "TelegramSetup.exe" }
+            @{Url = "github-latest:ungoogled-software/ungoogled-chromium-windows|ungoogled-chromium_*_installer_x64.exe"; FileName = "ungoogled-chromium-installer.exe" }
         )
     },
     @{ Name = "START PROGS"; Icon = "⚙️"; Folder = "02_Start_Progs"; Files = @(

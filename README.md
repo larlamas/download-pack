@@ -78,7 +78,8 @@ C:\Downloads_Pack\
 ├── 📂 01_Programs\
 │   ├── SteamSetup.exe
 │   ├── DiscordSetup.exe
-│   └── TelegramSetup.exe
+│   ├── TelegramSetup.exe
+│   └── ungoogled-chromium.exe
 │
 ├── 📂 02_Start_Progs\
 │   ├── 7z2600-x64.exe
@@ -124,6 +125,7 @@ C:\Downloads_Pack\
 | 📊 Итоги | Сводка: скачано / ошибки / пропущено / время |
 | 🔒 TLS 1.2/1.3 | Автоматическая настройка протоколов |
 | 🌐 User-Agent | Обход блокировок от ботов |
+| 📦 API Парсинг | Автозагрузка актуальных версий c TechPowerUp и Github |
 
 ---
 
